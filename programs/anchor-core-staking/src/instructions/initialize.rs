@@ -49,6 +49,7 @@ pub fn handler(ctx: Context<Initialize>, rewards_bps: u16, freeze_period: u16) -
     ctx.accounts.config.set_inner(Config { 
         rewards_bps, 
         freeze_period, 
+        staked_count: 0,
         rewards_bump: ctx.bumps.rewards_mint, 
         bump: ctx.bumps.config
     });

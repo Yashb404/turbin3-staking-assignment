@@ -22,4 +22,7 @@ pub enum ErrorCode {
 
     #[msg("Invalid rewards bps")]
     InvalidRewardsBps,
+
+    #[msg("No rewards available to claim")]
+    NoRewardsToClaim,
 }

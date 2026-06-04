@@ -5,7 +5,7 @@ description = "Created with Anchor"
 edition = "2021"
 
 [lib]
-crate-type = ["cdylib", "lib"]
+crate-type = ["cdylib"]
 name = "anchor_core_staking"
 
 [features]

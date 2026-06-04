@@ -2,12 +2,11 @@ use anchor_lang::prelude::*;
 use mpl_core::{
     ID as MPL_CORE_ID, 
     accounts::{BaseAssetV1, BaseCollectionV1}, 
-    fetch_plugin, 
-    instructions::{AddPluginV1CpiBuilder, UpdatePluginV1CpiBuilder}, 
-    types::{Attribute, Attributes, FreezeDelegate, Plugin, PluginAuthority, PluginType, UpdateAuthority}
+    instructions::{AddPluginV1CpiBuilder, UpdateCollectionPluginV1CpiBuilder, UpdatePluginV1CpiBuilder}, 
+    types::{Attribute, Attributes, FreezeDelegate, Plugin, PluginAuthority, UpdateAuthority}
 };
 
-use crate::{error::ErrorCode, state::Config};
+use crate::{error::ErrorCode, state::Config, utils::load_asset_attributes};
 
 #[derive(Accounts)]
 pub struct Stake<'info> {
@@ -15,6 +14,7 @@ pub struct Stake<'info> {
     pub owner: Signer<'info>,
 
     #[account(
+        mut,
         seeds = [b"config", collection.key().as_ref()],
         bump = config.bump,
     )]
@@ -50,12 +50,8 @@ pub struct Stake<'info> {
 
 pub fn handler(ctx: Context<Stake>) -> Result<()> {
     
-    let attributes_fetched = fetch_plugin::<BaseAssetV1, Attributes>(
-        &ctx.accounts.asset.to_account_info(), 
-        PluginType::Attributes,
-    )
-    .ok()
-    .map(|(_,attrs, _)| attrs);
+    let current_timestamp = Clock::get()?.unix_timestamp;
+    let attributes_fetched = load_asset_attributes(&ctx.accounts.asset.to_account_info())?;
 
     let mut attributes_list: Vec<Attribute> = Vec::new();
 
@@ -78,7 +74,12 @@ pub fn handler(ctx: Context<Stake>) -> Result<()> {
 
     attributes_list.push(Attribute { 
         key: "staked_at".to_string(), 
-        value: Clock::get()?.unix_timestamp.to_string(),
+        value: current_timestamp.to_string(),
+    });
+
+    attributes_list.push(Attribute {
+        key: "rewards_updated_at".to_string(),
+        value: current_timestamp.to_string(),
     });
 
    
@@ -110,6 +111,28 @@ pub fn handler(ctx: Context<Stake>) -> Result<()> {
         .plugin(Plugin::Attributes(Attributes { attribute_list: attributes_list }))
         .invoke_signed(&[signer_seeds])?;
     }
+
+    ctx.accounts.config.staked_count = ctx
+        .accounts
+        .config
+        .staked_count
+        .checked_add(1)
+        .ok_or(ErrorCode::InvalidTimestamp)?;
+
+    let collection_attributes = Attributes {
+        attribute_list: vec![Attribute {
+            key: "staked_count".to_string(),
+            value: ctx.accounts.config.staked_count.to_string(),
+        }],
+    };
+
+    UpdateCollectionPluginV1CpiBuilder::new(&ctx.accounts.mpl_core_program.to_account_info())
+    .collection(&ctx.accounts.collection.to_account_info())
+    .payer(&ctx.accounts.owner.to_account_info())
+    .authority(Some(&ctx.accounts.update_authority.to_account_info()))
+    .system_program(&ctx.accounts.system_program.to_account_info())
+    .plugin(Plugin::Attributes(collection_attributes))
+    .invoke_signed(&[signer_seeds])?;
 
     AddPluginV1CpiBuilder::new(&ctx.accounts.mpl_core_program.to_account_info())
     .asset(&ctx.accounts.asset.to_account_info())

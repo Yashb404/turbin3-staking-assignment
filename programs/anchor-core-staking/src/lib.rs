@@ -4,6 +4,7 @@ pub mod constants;
 pub mod error;
 pub mod instructions;
 pub mod state;
+pub mod utils;
 
 use anchor_lang::prelude::*;
 
@@ -35,5 +36,9 @@ pub mod anchor_core_staking {
 
     pub fn unstake(ctx: Context<Unstake>) -> Result<()> {
         unstake::handler(ctx)
+    }
+
+    pub fn claim(ctx: Context<Claim>) -> Result<()> {
+        claim::handler(ctx)
     }
 }

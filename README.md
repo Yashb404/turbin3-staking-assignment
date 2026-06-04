@@ -18,7 +18,8 @@ Using Metaplex Core's plugin architecture:
 * NFTs become non-transferable while staked
 * Staking metadata is stored directly on the asset
 * Rewards are distributed through a dedicated SPL token mint
-* Unstaking automatically calculates and issues earned rewards
+* Rewards can be claimed without unstaking
+* Unstaking only mints any rewards that remain unclaimed
 
 This approach minimizes custody risks while preserving a familiar staking experience.
 
@@ -65,6 +66,7 @@ PDA:
 ```
 
 Reward tokens are minted during successful unstaking operations.
+The collection also tracks its live staked NFT total using an Attributes plugin.
 
 ---
 
@@ -114,6 +116,7 @@ Metadata is stored directly on the asset:
 ```text
 staked = true
 staked_at = <unix_timestamp>
+rewards_updated_at = <unix_timestamp>
 ```
 
 Result:
@@ -121,10 +124,23 @@ Result:
 * NFT remains in owner's wallet
 * Transfers are disabled
 * Staking timer begins
+* Collection `staked_count` is incremented
 
 ---
 
-### 4. Unstake
+### 4. Claim Rewards
+
+Users can claim accrued rewards without unstaking the NFT.
+
+Result:
+
+* NFT remains staked and frozen
+* Rewards are minted for completed staking days since the last reward update
+* `rewards_updated_at` is refreshed
+
+---
+
+### 5. Unstake
 
 The program validates:
 
@@ -138,16 +154,19 @@ If successful:
 ```text
 frozen = false
 staked = false
+staked_at = 0
+rewards_updated_at = 0
 ```
 
 #### Reward Distribution
 
-Reward tokens are minted to the owner's associated token account.
+Reward tokens are minted to the owner's associated token account only for any days not already claimed.
 
 Result:
 
 * NFT becomes transferable again
-* User receives staking rewards
+* User receives any remaining staking rewards
+* Collection `staked_count` is decremented
 
 ---
 
@@ -167,7 +186,7 @@ Where:
 
 | Variable    | Meaning                           |
 | ----------- | --------------------------------- |
-| staked_days | Number of completed staking days  |
+| staked_days | Number of completed staking days since the last reward update |
 | rewards_bps | Daily reward rate in basis points |
 | decimals    | Reward token mint decimals        |
 
@@ -196,14 +215,20 @@ Activates staking for an NFT by:
 
 * Freezing the asset
 * Recording staking metadata
+* Incrementing the collection `staked_count`
+
+### claim
+
+Mints rewards without unstaking by keeping `staked_at` unchanged and only advancing the reward accrual timestamp.
 
 ### unstake
 
 Completes staking by:
 
 * Removing freeze restrictions
-* Calculating rewards
-* Minting reward tokens
+* Minting any remaining unclaimed rewards
+* Resetting staking metadata
+* Decrementing the collection `staked_count`
 
 ---
 
@@ -297,4 +322,3 @@ Rewards Minted
 ```
 
 ---
-
